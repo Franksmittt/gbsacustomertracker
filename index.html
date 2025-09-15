@@ -117,13 +117,11 @@
     
     // --- DATA LISTENING ---
     function listenToBranchData(branchName) {
-        // Unsubscribe from previous listeners
         if (unsubscribeEntries) unsubscribeEntries();
         if (unsubscribeSummary) unsubscribeSummary();
         
         renderUIForBranch(branchName);
 
-        // Listener for all interaction entries
         const entriesRef = collection(db, "entries");
         const qEntries = query(entriesRef, where("branch", "==", branchName), orderBy("timestamp", "desc"));
         unsubscribeEntries = onSnapshot(qEntries, (snapshot) => {
@@ -132,8 +130,7 @@
             updateLogTable();
         });
 
-        // Listener for the single daily financial summary
-        const summaryId = `${new Date().toISOString().split('T')[0]}-${branchName}`; // e.g. 2025-09-15-Alberton
+        const summaryId = `${new Date().toISOString().split('T')[0]}-${branchName}`;
         const summaryRef = doc(db, "dailySummaries", summaryId);
         unsubscribeSummary = onSnapshot(summaryRef, (docSnap) => {
             dailySummary = docSnap.exists() ? docSnap.data() : { turnover: 0, cost: 0 };
@@ -147,7 +144,6 @@
         const dashboardContainer = document.getElementById('dashboard-container');
         const logTableContainer = document.getElementById('log-table-container');
 
-        // Only show input forms for the user's own branch
         if (branchName === currentUser.branch) {
             inputContainer.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow-md">
@@ -163,7 +159,6 @@
             inputContainer.innerHTML = `<div class="bg-white p-6 rounded-2xl shadow-md text-center"><h2 class="text-xl font-bold text-slate-700">Viewing ${branchName} Data</h2><p class="text-slate-500 mt-2">Switch to your branch tab to add new entries.</p></div>`;
         }
         
-        // Always render dashboard and log table structures
         dashboardContainer.innerHTML = `
             <div class="bg-white p-6 rounded-2xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4">Today's Financials for ${branchName}</h2>
@@ -187,13 +182,11 @@
                     <div><label for="summary-cost" class="font-semibold block mb-1">Day's Total Cost of Goods</label><input type="number" id="summary-cost" step="0.01" class="w-full p-2 border rounded-lg"></div>
                     <button type="submit" class="w-full bg-slate-800 text-white font-bold py-3 rounded-lg">Save Daily Totals</button>
                 </form>
-            </div>
-            `;
+            </div>`;
         logTableContainer.innerHTML = `
             <h2 class="text-2xl font-bold mb-4">Log for ${branchName}</h2>
             <div class="overflow-x-auto"><table class="w-full text-left"><thead class="border-b-2"><tr><th class="p-2">Time</th><th class="p-2">Type</th><th class="p-2">Details</th><th class="p-2">Outcome / Notes</th><th class="p-2">Actions</th></tr></thead><tbody id="log-body"></tbody></table></div>`;
         
-        // Bind event listener for the new summary form
         if (branchName === currentUser.branch) {
             document.getElementById('summary-form').addEventListener('submit', handleDailySummarySubmit);
         }
@@ -219,25 +212,6 @@
         walkInForm.addEventListener('submit', handleFormSubmit);
         whatsappForm.addEventListener('submit', handleFormSubmit);
     }
-    
-    // --- DATA SAVING (CREATE & UPDATE) ---
-    async function handleFormSubmit(e) { /* ... Similar logic, simplified ... */ }
-    async function handleDailySummarySubmit(e) { /* ... New function ... */ }
-    async function handleUpdateSubmit(e) { /* ... New function for edit modal ... */ }
-
-    // --- EDIT MODAL LOGIC ---
-    function openEditModal(entry) { /* ... New function ... */ }
-    function closeEditModal() { editModalBackdrop.style.display = 'none'; }
-    
-    // --- UI UPDATE ---
-    function updateDashboard() { /* ... Updated logic ... */ }
-    function updateLogTable() { /* ... Updated to add Edit button ... */ }
-
-    // --- HELPER FUNCTIONS ---
-    const handleLogout = () => signOut(auth);
-    function setupBranchTabs() { /* ... Unchanged ... */ }
-    
-    // --- Full function implementations ---
     
     editModalBackdrop.addEventListener('click', (e) => { if (e.target === editModalBackdrop) closeEditModal(); });
 
@@ -346,9 +320,13 @@
         editForm.querySelector('#cancel-edit').addEventListener('click', closeEditModal);
         editForm.addEventListener('submit', handleUpdateSubmit);
     }
+
+    function closeEditModal() { 
+        editModal.style.transform = 'translateY(-48px)';
+        editModalBackdrop.style.display = 'none'; 
+    }
     
     function updateDashboard() {
-        // Financials from daily summary
         const turnover = dailySummary?.turnover || 0;
         const cost = dailySummary?.cost || 0;
         const gpAmount = turnover - cost;
@@ -357,14 +335,12 @@
         document.getElementById('total-gp-amount').textContent = `R ${gpAmount.toFixed(2)}`;
         document.getElementById('total-gp-percent').textContent = `${gpPercent.toFixed(2)}%`;
         
-        // Populate end of day form with current values
         const summaryForm = document.getElementById('summary-form');
         if (summaryForm) {
             summaryForm.querySelector('#summary-turnover').value = turnover;
             summaryForm.querySelector('#summary-cost').value = cost;
         }
 
-        // Activity from entries
         document.getElementById('total-walk-ins').textContent = entries.filter(e => e.type === 'Walk-In').length;
         document.getElementById('total-whatsapps').textContent = entries.filter(e => e.type === 'WhatsApp').length;
     }
@@ -397,7 +373,7 @@
         });
     }
 
-    // Unchanged helper functions
+    const handleLogout = () => signOut(auth);
     function setupBranchTabs() { const branches = ["Alberton", "Vanderbijlpark"]; const tabsContainer = document.getElementById('branch-tabs'); tabsContainer.innerHTML = ''; branches.forEach(branch => { const tab = document.createElement('a'); tab.href = '#'; tab.dataset.branch = branch; tab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; tab.textContent = branch; if (branch === currentUser.branch) { tab.classList.add('tab-active'); } tab.addEventListener('click', (e) => { e.preventDefault(); listenToBranchData(branch); document.querySelectorAll('#branch-tabs a').forEach(t => t.classList.remove('tab-active')); tab.classList.add('tab-active'); }); tabsContainer.appendChild(tab); }); }
 
 </script>
