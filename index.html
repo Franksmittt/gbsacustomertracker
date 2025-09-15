@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Customer Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .form-radio {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            display: inline-block;
+            position: relative;
+            background-color: #f1f5f9;
+            color: #64748b;
+            top: 5px;
+            height: 24px;
+            width: 24px;
+            border: 1px solid #cbd5e1;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-right: 4px;
+            outline: none;
+        }
+        .form-radio:checked::before {
+            content: '';
+            display: block;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%,-50%);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-slate-900">Daily Customer Tracker</h1>
+            <p id="current-date" class="text-lg text-slate-600"></p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column: Input Forms -->
+            <div class="lg:col-span-1 space-y-8">
+                <!-- Walk-In Form -->
+                <div class="bg-white p-6 rounded-2xl shadow-md">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Log a Walk-In Customer</h2>
+                    <form id="walk-in-form" class="space-y-4">
+                        <div>
+                            <label class="font-semibold block mb-2">Did they buy?</label>
+                            <div class="flex items-center space-x-4">
+                                <label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="walkin-bought" value="no" checked> <span class="ml-2">No</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="walkin-bought" value="yes"> <span class="ml-2">Yes</span></label>
+                            </div>
+                        </div>
+                        
+                        <!-- Sale Fields -->
+                        <div id="walkin-sale-fields" class="hidden space-y-4">
+                            <div>
+                                <label for="walkin-amount" class="font-semibold block mb-1">Sale Amount (Turnover)</label>
+                                <input type="number" id="walkin-amount" placeholder="e.g. 1250.50" step="0.01" class="w-full p-2 border border-slate-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label for="walkin-cost" class="font-semibold block mb-1">Cost of Goods Sold</label>
+                                <input type="number" id="walkin-cost" placeholder="e.g. 750.00" step="0.01" class="w-full p-2 border border-slate-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label for="walkin-items" class="font-semibold block mb-1">Items Purchased</label>
+                                <textarea id="walkin-items" rows="2" class="w-full p-2 border border-slate-300 rounded-lg"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- No Sale Fields -->
+                        <div id="walkin-no-sale-fields">
+                            <label for="walkin-no-sale-reason" class="font-semibold block mb-1">Reason for No Sale</label>
+                            <select id="walkin-no-sale-reason" class="w-full p-2 border border-slate-300 rounded-lg bg-white">
+                                <option value="Just Looking">Just Looking</option>
+                                <option value="Price Too High">Price Too High</option>
+                                <option value="No Stock / Availability">No Stock / Availability</option>
+                                <option value="Found Cheaper Elsewhere">Found Cheaper Elsewhere</option>
+                                <option value="Wrong Product/Service">Wrong Product/Service</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="walkin-source" class="font-semibold block mb-1">Where did they hear about us?</label>
+                            <select id="walkin-source" class="w-full p-2 border border-slate-300 rounded-lg bg-white">
+                                <option value="Passing By">Passing By / Saw Sign</option>
+                                <option value="Google Search">Google Search</option>
+                                <option value="Facebook">Facebook</option>
+                                <option value="Referral">Referral / Word of Mouth</option>
+                                <option value="Previous Customer">Previous Customer</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300">Log Walk-In</button>
+                    </form>
+                </div>
+                
+                <!-- WhatsApp Form -->
+                <div class="bg-white p-6 rounded-2xl shadow-md">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Log a WhatsApp Inquiry</h2>
+                    <form id="whatsapp-form" class="space-y-4">
+                        <div>
+                            <label for="whatsapp-inquiry" class="font-semibold block mb-1">What did they ask about?</label>
+                            <input type="text" id="whatsapp-inquiry" placeholder="e.g., Price on product X" required class="w-full p-2 border border-slate-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="font-semibold block mb-2">Did it result in a sale?</label>
+                            <div class="flex items-center space-x-4">
+                                <label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="whatsapp-bought" value="no" checked> <span class="ml-2">No</span></label>
+                                <label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="whatsapp-bought" value="yes"> <span class="ml-2">Yes</span></label>
+                            </div>
+                        </div>
+
+                        <div id="whatsapp-sale-fields" class="hidden space-y-4">
+                            <div>
+                                <label for="whatsapp-amount" class="font-semibold block mb-1">Sale Amount (Turnover)</label>
+                                <input type="number" id="whatsapp-amount" placeholder="e.g. 1250.50" step="0.01" class="w-full p-2 border border-slate-300 rounded-lg">
+                            </div>
+                             <div>
+                                <label for="whatsapp-cost" class="font-semibold block mb-1">Cost of Goods Sold</label>
+                                <input type="number" id="whatsapp-cost" placeholder="e.g. 750.00" step="0.01" class="w-full p-2 border border-slate-300 rounded-lg">
+                            </div>
+                        </div>
+
+                        <div id="whatsapp-no-sale-fields">
+                            <label for="whatsapp-no-sale-reason" class="font-semibold block mb-1">Reason for No Sale</label>
+                            <select id="whatsapp-no-sale-reason" class="w-full p-2 border border-slate-300 rounded-lg bg-white">
+                                <option value="Ghosted / No Reply">Ghosted / No Reply</option>
+                                <option value="Price Too High">Price Too High</option>
+                                <option value="Too Far / Location">Too Far / Location</option>
+                                <option value="No Stock / Availability">No Stock / Availability</option>
+                                <option value="Found Cheaper Elsewhere">Found Cheaper Elsewhere</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition duration-300">Log WhatsApp</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Right Column: Dashboard -->
+            <div class="lg:col-span-2 space-y-8">
+                <div class="bg-white p-6 rounded-2xl shadow-md">
+                    <h2 class="text-2xl font-bold mb-4">Overall Financials</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total Turnover</div><div class="text-4xl font-bold text-slate-800" id="total-turnover">R 0.00</div></div>
+                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total GP Amount</div><div class="text-4xl font-bold text-green-600" id="total-gp-amount">R 0.00</div></div>
+                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Overall GP %</div><div class="text-4xl font-bold text-green-600" id="total-gp-percent">0.00%</div></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h2 class="text-2xl font-bold mb-4">Walk-In Analysis</h2>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total</div><div class="text-3xl font-bold text-slate-800" id="total-walk-ins">0</div></div>
+                            <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Sales</div><div class="text-3xl font-bold text-slate-800" id="walk-in-sales">0</div></div>
+                            <div class="bg-blue-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-blue-800">Conversion</div><div class="text-3xl font-bold text-blue-600" id="walk-in-conversion">0.00%</div></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h2 class="text-2xl font-bold mb-4">WhatsApp Analysis</h2>
+                        <div class="grid grid-cols-3 gap-4">
+                           <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total</div><div class="text-3xl font-bold text-slate-800" id="total-whatsapps">0</div></div>
+                           <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Sales</div><div class="text-3xl font-bold text-slate-800" id="whatsapp-sales">0</div></div>
+                           <div class="bg-green-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-green-800">Conversion</div><div class="text-3xl font-bold text-green-600" id="whatsapp-conversion">0.00%</div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h3 class="text-xl font-bold mb-2">Reasons for No Sale (All)</h3>
+                        <div id="reason-breakdown" class="text-slate-600">No data yet.</div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h3 class="text-xl font-bold mb-2">Walk-In Sources</h3>
+                        <div id="source-breakdown" class="text-slate-600">No data yet.</div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-md">
+                    <h2 class="text-2xl font-bold mb-4">End of Day Export</h2>
+                    <p class="text-slate-600 mb-4">Click to generate a summary to send with your cashup report. Then you can copy and paste it.</p>
+                    <button id="generate-report-btn" class="w-full bg-slate-800 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-900 transition duration-300">Generate Daily Report</button>
+                    <textarea id="export-area" class="hidden w-full h-64 mt-4 font-mono text-sm bg-slate-50 p-2 border rounded-lg"></textarea>
+                    <button id="copy-button" class="hidden w-full mt-2 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">Copy Report to Clipboard</button>
+                    <div id="copy-success" class="text-green-600 text-center font-bold mt-2 h-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Table -->
+        <div class="mt-8 bg-white p-6 rounded-2xl shadow-md">
+            <h2 class="text-2xl font-bold mb-4">Today's Log</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="border-b-2">
+                        <tr>
+                            <th class="p-2">Time</th>
+                            <th class="p-2">Type</th>
+                            <th class="p-2">Outcome</th>
+                            <th class="p-2">Amount</th>
+                            <th class="p-2">Reason / Items</th>
+                            <th class="p-2">Source / Inquiry</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-body">
+                        <tr id="no-entries-row"><td colspan="6" class="text-center p-4 text-slate-500">No entries yet...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- DATA STORAGE ---
+    let entries = [];
+
+    // --- DOM ELEMENT CACHING ---
+    const walkinForm = document.getElementById('walk-in-form');
+    const whatsappForm = document.getElementById('whatsapp-form');
+    
+    // Toggle field visibility based on radio button selection
+    function setupRadioToggle(radioName, saleFieldsId, noSaleFieldsId) {
+        document.querySelectorAll(`input[name="${radioName}"]`).forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.getElementById(saleFieldsId).classList.toggle('hidden', this.value !== 'yes');
+                document.getElementById(noSaleFieldsId).classList.toggle('hidden', this.value === 'yes');
+            });
+        });
+    }
+    setupRadioToggle('walkin-bought', 'walkin-sale-fields', 'walkin-no-sale-fields');
+    setupRadioToggle('whatsapp-bought', 'whatsapp-sale-fields', 'whatsapp-no-sale-fields');
+
+    // --- FORM SUBMISSION LOGIC ---
+    walkinForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const bought = document.querySelector('input[name="walkin-bought"]:checked').value === 'yes';
+        const entry = {
+            type: 'Walk-In',
+            timestamp: new Date(),
+            bought: bought,
+            amount: bought ? parseFloat(document.getElementById('walkin-amount').value) || 0 : 0,
+            cost: bought ? parseFloat(document.getElementById('walkin-cost').value) || 0 : 0,
+            reason: bought ? document.getElementById('walkin-items').value : document.getElementById('walkin-no-sale-reason').value,
+            source: document.getElementById('walkin-source').value
+        };
+        logEntry(entry);
+        this.reset();
+        document.querySelector('input[name="walkin-bought"][value="no"]').checked = true;
+        document.querySelector('input[name="walkin-bought"][value="no"]').dispatchEvent(new Event('change'));
+    });
+
+    whatsappForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const bought = document.querySelector('input[name="whatsapp-bought"]:checked').value === 'yes';
+        const entry = {
+            type: 'WhatsApp',
+            timestamp: new Date(),
+            bought: bought,
+            amount: bought ? parseFloat(document.getElementById('whatsapp-amount').value) || 0 : 0,
+            cost: bought ? parseFloat(document.getElementById('whatsapp-cost').value) || 0 : 0,
+            reason: bought ? 'Sale via WhatsApp' : document.getElementById('whatsapp-no-sale-reason').value,
+            source: document.getElementById('whatsapp-inquiry').value
+        };
+        logEntry(entry);
+        this.reset();
+        document.querySelector('input[name="whatsapp-bought"][value="no"]').checked = true;
+        document.querySelector('input[name="whatsapp-bought"][value="no"]').dispatchEvent(new Event('change'));
+    });
+
+    function logEntry(entry) {
+        entries.push(entry);
+        updateDashboard();
+        addEntryToLogTable(entry);
+    }
+
+    // --- DASHBOARD UPDATE LOGIC ---
+    function updateDashboard() {
+        const walkIns = entries.filter(e => e.type === 'Walk-In');
+        const whatsapps = entries.filter(e => e.type === 'WhatsApp');
+
+        const totalWalkIns = walkIns.length;
+        const walkInSales = walkIns.filter(e => e.bought).length;
+        const walkInConversion = totalWalkIns > 0 ? (walkInSales / totalWalkIns) * 100 : 0;
+
+        const totalWhatsapps = whatsapps.length;
+        const whatsappSales = whatsapps.filter(e => e.bought).length;
+        const whatsappConversion = totalWhatsapps > 0 ? (whatsappSales / totalWhatsapps) * 100 : 0;
+
+        const totalTurnover = entries.reduce((sum, e) => sum + e.amount, 0);
+        const totalCost = entries.reduce((sum, e) => sum + e.cost, 0);
+        const totalGpAmount = totalTurnover - totalCost;
+        const totalGpPercent = totalTurnover > 0 ? (totalGpAmount / totalTurnover) * 100 : 0;
+
+        // Update display elements
+        document.getElementById('total-walk-ins').textContent = totalWalkIns;
+        document.getElementById('walk-in-sales').textContent = walkInSales;
+        document.getElementById('walk-in-conversion').textContent = walkInConversion.toFixed(2) + '%';
+        
+        document.getElementById('total-whatsapps').textContent = totalWhatsapps;
+        document.getElementById('whatsapp-sales').textContent = whatsappSales;
+        document.getElementById('whatsapp-conversion').textContent = whatsappConversion.toFixed(2) + '%';
+        
+        document.getElementById('total-turnover').textContent = `R ${totalTurnover.toFixed(2)}`;
+        document.getElementById('total-gp-amount').textContent = `R ${totalGpAmount.toFixed(2)}`;
+        
+        const gpPercentEl = document.getElementById('total-gp-percent');
+        gpPercentEl.textContent = `${totalGpPercent.toFixed(2)}%`;
+        gpPercentEl.classList.toggle('text-red-600', totalGpPercent < 0);
+        gpPercentEl.classList.toggle('text-green-600', totalGpPercent >= 0);
+        
+        const gpAmountEl = document.getElementById('total-gp-amount');
+        gpAmountEl.classList.toggle('text-red-600', totalGpAmount < 0);
+        gpAmountEl.classList.toggle('text-green-600', totalGpAmount >= 0);
+
+
+        // Update breakdowns
+        updateBreakdown('reason-breakdown', entries.filter(e => !e.bought), 'reason');
+        updateBreakdown('source-breakdown', walkIns, 'source');
+    }
+
+    function updateBreakdown(elementId, data, property) {
+        const breakdownEl = document.getElementById(elementId);
+        const counts = data.reduce((acc, item) => {
+            const key = item[property];
+            if (key) acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        
+        if (Object.keys(counts).length === 0) {
+            breakdownEl.innerHTML = '<p class="text-slate-500">No data yet.</p>';
+            return;
+        }
+
+        let html = '<ul class="space-y-1">';
+        Object.entries(counts)
+            .sort(([,a],[,b]) => b-a)
+            .forEach(([key, value]) => {
+                html += `<li class="flex justify-between items-center"><span>${key}</span> <span class="font-bold bg-slate-100 px-2 py-0.5 rounded-full text-sm">${value}</span></li>`;
+            });
+        html += '</ul>';
+        breakdownEl.innerHTML = html;
+    }
+
+    // --- LOG TABLE ---
+    function addEntryToLogTable(entry) {
+        const tableBody = document.getElementById('log-body');
+        const noEntriesRow = document.getElementById('no-entries-row');
+        if (noEntriesRow) noEntriesRow.remove();
+
+        const row = tableBody.insertRow(0); // Insert at the top
+        row.className = 'border-b hover:bg-slate-50';
+        row.innerHTML = `
+            <td class="p-2">${entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+            <td class="p-2">${entry.type}</td>
+            <td class="p-2 font-semibold ${entry.bought ? 'text-green-600' : 'text-red-600'}">${entry.bought ? 'Sale' : 'No Sale'}</td>
+            <td class="p-2">R ${entry.amount.toFixed(2)}</td>
+            <td class="p-2 text-sm text-slate-600 truncate max-w-xs">${entry.reason || '-'}</td>
+            <td class="p-2 text-sm text-slate-600 truncate max-w-xs">${entry.source || '-'}</td>
+        `;
+    }
+
+    // --- EXPORT LOGIC ---
+    const generateReportBtn = document.getElementById('generate-report-btn');
+    const exportArea = document.getElementById('export-area');
+    const copyButton = document.getElementById('copy-button');
+    const copySuccess = document.getElementById('copy-success');
+
+    generateReportBtn.addEventListener('click', function() {
+        const date = document.getElementById('current-date').textContent;
+        const report = `
+DAILY TRACKER REPORT
+--------------------------------
+Date: ${date}
+--------------------------------
+
+### FINANCIAL SUMMARY ###
+Total Turnover: ${document.getElementById('total-turnover').textContent}
+Total GP Amount: ${document.getElementById('total-gp-amount').textContent}
+Overall GP %: ${document.getElementById('total-gp-percent').textContent}
+
+### WALK-IN ANALYSIS ###
+Total Walk-ins: ${document.getElementById('total-walk-ins').textContent}
+Walk-in Sales: ${document.getElementById('walk-in-sales').textContent}
+Walk-in Conversion Rate: ${document.getElementById('walk-in-conversion').textContent}
+
+### WHATSAPP ANALYSIS ###
+Total Inquiries: ${document.getElementById('total-whatsapps').textContent}
+WhatsApp Sales: ${document.getElementById('whatsapp-sales').textContent}
+WhatsApp Conversion Rate: ${document.getElementById('whatsapp-conversion').textContent}
+
+--------------------------------
+### KEY INSIGHTS ###
+
+TOP REASONS FOR NO SALE:
+${document.getElementById('reason-breakdown').innerText}
+
+TOP WALK-IN SOURCES:
+${document.getElementById('source-breakdown').innerText}
+--------------------------------
+        `;
+        
+        exportArea.value = report.trim();
+        exportArea.classList.remove('hidden');
+        copyButton.classList.remove('hidden');
+        copySuccess.textContent = '';
+    });
+
+    copyButton.addEventListener('click', function() {
+        exportArea.select();
+        document.execCommand('copy');
+        copySuccess.textContent = 'Report copied to clipboard!';
+        setTimeout(() => copySuccess.textContent = '', 2000);
+    });
+
+    // --- INITIALIZATION ---
+    function initialize() {
+        const today = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('current-date').textContent = today.toLocaleDateString('en-ZA', options);
+        updateDashboard();
+    }
+
+    // Run on page load
+    initialize();
+</script>
+</body>
+</html>
