@@ -39,18 +39,23 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Input Forms -->
             <div id="input-forms-container" class="lg:col-span-1 space-y-8"></div>
 
+            <!-- Right Column: Dashboard -->
             <div id="dashboard-container" class="lg:col-span-2 space-y-8"></div>
         </div>
 
+        <!-- Log Table -->
         <div id="log-table-container" class="mt-8 bg-white p-6 rounded-2xl shadow-md"></div>
     </div>
 
+    <!-- Edit Modal -->
     <div id="edit-modal-backdrop" class="fixed inset-0 z-10 hidden items-center justify-center">
         <div id="edit-modal" class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg transform transition-all -translate-y-12">
              <h2 class="text-2xl font-bold mb-4">Edit Entry</h2>
-             <form id="edit-form" class="space-y-4"></form> </div>
+             <form id="edit-form" class="space-y-4"></form> 
+        </div>
     </div>
 
 
@@ -80,6 +85,7 @@
     let entries = [];
     let dailySummary = null;
     let currentlyEditingId = null;
+    let currentBranch = null;
     let unsubscribeEntries = null; 
     let unsubscribeSummary = null;
 
@@ -117,6 +123,7 @@
     
     // --- DATA LISTENING ---
     function listenToBranchData(branchName) {
+        currentBranch = branchName; // Keep track of the currently viewed branch
         if (unsubscribeEntries) unsubscribeEntries();
         if (unsubscribeSummary) unsubscribeSummary();
         
@@ -182,7 +189,16 @@
                     <div><label for="summary-cost" class="font-semibold block mb-1">Day's Total Cost of Goods</label><input type="number" id="summary-cost" step="0.01" class="w-full p-2 border rounded-lg"></div>
                     <button type="submit" class="w-full bg-slate-800 text-white font-bold py-3 rounded-lg">Save Daily Totals</button>
                 </form>
-            </div>`;
+            </div>
+            <!-- NEW: Export Section -->
+            <div class="bg-white p-6 rounded-2xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4">End of Day Report</h2>
+                <button id="generate-report-btn" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg">Generate Daily Report</button>
+                <textarea id="export-area" class="w-full mt-4 p-2 border rounded-lg font-mono text-sm h-64 hidden" readonly></textarea>
+                <button id="copy-report-btn" class="w-full bg-teal-600 text-white font-bold py-2 rounded-lg mt-2 hidden">Copy to Clipboard</button>
+                <p id="copy-success" class="text-center text-green-600 font-semibold mt-2 h-4"></p>
+            </div>
+            `;
         logTableContainer.innerHTML = `
             <h2 class="text-2xl font-bold mb-4">Log for ${branchName}</h2>
             <div class="overflow-x-auto"><table class="w-full text-left"><thead class="border-b-2"><tr><th class="p-2">Time</th><th class="p-2">Type</th><th class="p-2">Details</th><th class="p-2">Outcome / Notes</th><th class="p-2">Actions</th></tr></thead><tbody id="log-body"></tbody></table></div>`;
@@ -190,6 +206,8 @@
         if (branchName === currentUser.branch) {
             document.getElementById('summary-form').addEventListener('submit', handleDailySummarySubmit);
         }
+        // Always bind the generate report button
+        document.getElementById('generate-report-btn').addEventListener('click', generateReport);
     }
     
     function populateAndBindForms() {
@@ -212,6 +230,86 @@
         walkInForm.addEventListener('submit', handleFormSubmit);
         whatsappForm.addEventListener('submit', handleFormSubmit);
     }
+    
+    // --- DATA SAVING (CREATE & UPDATE) ---
+    async function handleFormSubmit(e) { /* ... Unchanged ... */ }
+    async function handleDailySummarySubmit(e) { /* ... Unchanged ... */ }
+    async function handleUpdateSubmit(e) { /* ... Unchanged ... */ }
+
+    // --- EDIT MODAL LOGIC ---
+    function openEditModal(entry) { /* ... Unchanged ... */ }
+    function closeEditModal() { editModalBackdrop.style.display = 'none'; }
+    
+    // --- UI UPDATE ---
+    function updateDashboard() { /* ... Unchanged ... */ }
+    function updateLogTable() { /* ... Unchanged ... */ }
+
+    // --- REPORT GENERATION ---
+    function generateReport() {
+        const reportArea = document.getElementById('export-area');
+        const copyBtn = document.getElementById('copy-report-btn');
+        const copySuccess = document.getElementById('copy-success');
+
+        const date = document.getElementById('current-date').textContent;
+        const turnover = dailySummary?.turnover || 0;
+        const cost = dailySummary?.cost || 0;
+        const gpAmount = turnover - cost;
+        const gpPercent = turnover > 0 ? (gpAmount / turnover) * 100 : 0;
+        
+        const walkIns = entries.filter(e => e.type === 'Walk-In');
+        const whatsapps = entries.filter(e => e.type === 'WhatsApp');
+
+        // Helper to count outcomes
+        const countOutcomes = (data) => {
+            return data.reduce((acc, entry) => {
+                acc[entry.outcome] = (acc[entry.outcome] || 0) + 1;
+                return acc;
+            }, {});
+        };
+
+        const walkInOutcomes = countOutcomes(walkIns);
+        const whatsappOutcomes = countOutcomes(whatsapps);
+
+        let report = `
+DAILY REPORT - ${currentBranch}
+--------------------------------
+Date: ${date}
+--------------------------------
+
+### FINANCIAL SUMMARY ###
+Total Turnover: R ${turnover.toFixed(2)}
+Total GP Amount: R ${gpAmount.toFixed(2)}
+Overall GP %: ${gpPercent.toFixed(2)}%
+
+### ACTIVITY SUMMARY ###
+Total Walk-Ins: ${walkIns.length}
+Total WhatsApp Inquiries: ${whatsapps.length}
+
+### WALK-IN OUTCOMES ###
+${Object.entries(walkInOutcomes).map(([outcome, count]) => `- ${outcome}: ${count}`).join('\n') || 'No walk-in data.'}
+
+### WHATSAPP OUTCOMES ###
+${Object.entries(whatsappOutcomes).map(([outcome, count]) => `- ${outcome}: ${count}`).join('\n') || 'No WhatsApp data.'}
+--------------------------------
+        `.trim();
+
+        reportArea.value = report;
+        reportArea.classList.remove('hidden');
+        copyBtn.classList.remove('hidden');
+        copySuccess.textContent = '';
+        
+        copyBtn.onclick = () => {
+            reportArea.select();
+            document.execCommand('copy');
+            copySuccess.textContent = 'Report copied!';
+        };
+    }
+
+    // --- HELPER FUNCTIONS ---
+    const handleLogout = () => signOut(auth);
+    function setupBranchTabs() { /* ... Unchanged ... */ }
+    
+    // --- Full function implementations ---
     
     editModalBackdrop.addEventListener('click', (e) => { if (e.target === editModalBackdrop) closeEditModal(); });
 
@@ -379,3 +477,4 @@
 </script>
 </body>
 </html>
+
