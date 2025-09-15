@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - GBSA Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center h-screen">
+
+    <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg">
+        <h1 class="text-3xl font-bold text-center text-slate-800 mb-2">GBSA Customer Tracker</h1>
+        <p class="text-center text-slate-500 mb-6">Please sign in to continue</p>
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label for="email" class="block font-semibold text-slate-700">Email</label>
+                <input type="email" id="email" required class="w-full mt-1 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+            <div>
+                <label for="password" class="block font-semibold text-slate-700">Password</label>
+                <input type="password" id="password" required class="w-full mt-1 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition duration-300">Login</button>
+        </form>
+        <div id="error-message" class="mt-4 text-center text-red-600 font-semibold h-5"></div>
+    </div>
+
+    <script type="module">
+        // 1. Import the AUTH functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        // 2. Your web app's Firebase configuration (this is correct)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXyc8CNTe3Timv7aD5ie2eRebXyQF1HkM",
+            authDomain: "gbsa-tracker1.firebaseapp.com",
+            projectId: "gbsa-tracker1",
+            storageBucket: "gbsa-tracker1.appspot.com",
+            messagingSenderId: "582605310374",
+            appId: "1:582605310374:web:b3ddb2a1c499fe6e1e2767"
+        };
+
+        // 3. Initialize Firebase and get the Auth service
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // 4. Add logic to check if user is already logged in and redirect them
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                // If user object exists, they are logged in, so send them to the main page
+                window.location.href = 'index.html';
+            }
+        });
+
+        // 5. Get the form and error message elements from the page
+        const loginForm = document.getElementById('login-form');
+        const errorMessage = document.getElementById('error-message');
+
+        // 6. Add the event listener to handle the form submission
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent the page from reloading
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            errorMessage.textContent = ''; // Clear previous errors
+
+            try {
+                // 7. Call the Firebase function to sign the user in
+                await signInWithEmailAndPassword(auth, email, password);
+                // If successful, the onAuthStateChanged listener above will handle the redirect
+            } catch (error) {
+                // If it fails, log the error and show a message to the user
+                console.error("Login failed:", error.code);
+                errorMessage.textContent = 'Invalid email or password. Please try again.';
+            }
+        });
+    </script>
+</body>
+</html>
+
