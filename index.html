@@ -11,6 +11,7 @@
         .form-radio { appearance: none; display: inline-block; position: relative; background-color: #f1f5f9; color: #64748b; top: 5px; height: 24px; width: 24px; border: 1px solid #cbd5e1; border-radius: 50px; cursor: pointer; margin-right: 4px; outline: none; }
         .form-radio:checked::before { content: ''; display: block; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 12px; height: 12px; border-radius: 50%; background-color: #3b82f6; }
         .tab-active { border-color: #3b82f6; color: #3b82f6; background-color: #eff6ff; }
+        #edit-modal-backdrop { background-color: rgba(0,0,0,0.5); }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
@@ -33,28 +34,31 @@
 
         <div class="mb-6">
              <div class="border-b border-gray-200">
-                <nav id="branch-tabs" class="-mb-px flex space-x-6" aria-label="Tabs">
-                    </nav>
+                <nav id="branch-tabs" class="-mb-px flex space-x-6" aria-label="Tabs"></nav>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div id="input-forms-container" class="lg:col-span-1 space-y-8">
-                </div>
+            <div id="input-forms-container" class="lg:col-span-1 space-y-8"></div>
 
-            <div id="dashboard-container" class="lg:col-span-2 space-y-8">
-                </div>
+            <div id="dashboard-container" class="lg:col-span-2 space-y-8"></div>
         </div>
 
-        <div id="log-table-container" class="mt-8 bg-white p-6 rounded-2xl shadow-md">
-            </div>
+        <div id="log-table-container" class="mt-8 bg-white p-6 rounded-2xl shadow-md"></div>
     </div>
+
+    <div id="edit-modal-backdrop" class="fixed inset-0 z-10 hidden items-center justify-center">
+        <div id="edit-modal" class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg transform transition-all -translate-y-12">
+             <h2 class="text-2xl font-bold mb-4">Edit Entry</h2>
+             <form id="edit-form" class="space-y-4"></form> </div>
+    </div>
+
 
 <script type="module">
     // --- Firebase Imports ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     
     // --- Your web app's Firebase configuration ---
     const firebaseConfig = {
@@ -74,286 +78,328 @@
     // --- State Variables ---
     let currentUser = null;
     let entries = [];
-    let unsubscribe = null; // To stop listening to DB changes when switching branches
+    let dailySummary = null;
+    let currentlyEditingId = null;
+    let unsubscribeEntries = null; 
+    let unsubscribeSummary = null;
+
+    // --- DOM Elements ---
+    const editModalBackdrop = document.getElementById('edit-modal-backdrop');
+    const editModal = document.getElementById('edit-modal');
+    const editForm = document.getElementById('edit-form');
 
     // --- AUTHENTICATION ---
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // User is signed in, fetch their branch info
             const userDocRef = doc(db, "users", user.uid);
             const userDocSnap = await getDoc(userDocRef);
-
             if (userDocSnap.exists()) {
                 currentUser = { uid: user.uid, email: user.email, ...userDocSnap.data() };
                 document.getElementById('user-info').textContent = `${currentUser.email} (${currentUser.branch})`;
-                
-                // Show the app and hide loading screen
                 document.getElementById('app-loading').classList.add('hidden');
                 document.getElementById('app-content').classList.remove('hidden');
                 initializeAppUI();
             } else {
-                console.error("User data not found in Firestore! Logging out.");
-                alert("Your user account is not configured correctly in the database. Please contact your administrator.");
                 handleLogout();
             }
         } else {
-            // User is signed out, redirect to login page
             window.location.href = 'login.html';
         }
     });
-
-    const handleLogout = () => {
-        signOut(auth).catch(error => console.error("Logout failed:", error));
-    };
     
     // --- INITIALIZATION ---
     function initializeAppUI() {
         document.getElementById('logout-button').addEventListener('click', handleLogout);
-        const today = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        document.getElementById('current-date').textContent = today.toLocaleDateString('en-ZA', options);
-        
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         setupBranchTabs();
-        listenToBranchData(currentUser.branch); // Initially view user's own branch
+        listenToBranchData(currentUser.branch); 
     }
     
-    function setupBranchTabs() {
-        const branches = ["Alberton", "Vanderbijlpark"];
-        const tabsContainer = document.getElementById('branch-tabs');
-        tabsContainer.innerHTML = '';
-        branches.forEach(branch => {
-            const tab = document.createElement('a');
-            tab.href = '#';
-            tab.dataset.branch = branch;
-            tab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
-            tab.textContent = branch;
-            if (branch === currentUser.branch) {
-                tab.classList.add('tab-active');
-            }
-            tab.addEventListener('click', (e) => {
-                e.preventDefault();
-                listenToBranchData(branch);
-                document.querySelectorAll('#branch-tabs a').forEach(t => t.classList.remove('tab-active'));
-                tab.classList.add('tab-active');
-            });
-            tabsContainer.appendChild(tab);
-        });
-    }
-
     // --- DATA LISTENING ---
     function listenToBranchData(branchName) {
-        if (unsubscribe) {
-            unsubscribe(); // Stop listening to the old branch's data to prevent memory leaks
-        }
+        // Unsubscribe from previous listeners
+        if (unsubscribeEntries) unsubscribeEntries();
+        if (unsubscribeSummary) unsubscribeSummary();
         
         renderUIForBranch(branchName);
 
+        // Listener for all interaction entries
         const entriesRef = collection(db, "entries");
-        const q = query(entriesRef, where("branch", "==", branchName), orderBy("timestamp", "desc"));
-        
-        unsubscribe = onSnapshot(q, (querySnapshot) => {
-            entries = [];
-            querySnapshot.forEach((doc) => {
-                entries.push({ id: doc.id, ...doc.data() });
-            });
+        const qEntries = query(entriesRef, where("branch", "==", branchName), orderBy("timestamp", "desc"));
+        unsubscribeEntries = onSnapshot(qEntries, (snapshot) => {
+            entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateDashboard();
             updateLogTable();
         });
+
+        // Listener for the single daily financial summary
+        const summaryId = `${new Date().toISOString().split('T')[0]}-${branchName}`; // e.g. 2025-09-15-Alberton
+        const summaryRef = doc(db, "dailySummaries", summaryId);
+        unsubscribeSummary = onSnapshot(summaryRef, (docSnap) => {
+            dailySummary = docSnap.exists() ? docSnap.data() : { turnover: 0, cost: 0 };
+            updateDashboard();
+        });
     }
-    
+
     // --- DYNAMIC UI RENDERING ---
     function renderUIForBranch(branchName) {
         const inputContainer = document.getElementById('input-forms-container');
         const dashboardContainer = document.getElementById('dashboard-container');
         const logTableContainer = document.getElementById('log-table-container');
 
+        // Only show input forms for the user's own branch
         if (branchName === currentUser.branch) {
             inputContainer.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Log a Walk-In Customer</h2>
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Log a Walk-In</h2>
                     <form id="walk-in-form" class="space-y-4"></form>
                 </div>
                 <div class="bg-white p-6 rounded-2xl shadow-md">
-                     <h2 class="text-2xl font-bold mb-4 border-b pb-2">Log a WhatsApp Inquiry</h2>
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Log a WhatsApp Inquiry</h2>
                     <form id="whatsapp-form" class="space-y-4"></form>
                 </div>`;
             populateAndBindForms();
         } else {
-            inputContainer.innerHTML = `<div class="bg-white p-6 rounded-2xl shadow-md text-center">
-                <h2 class="text-xl font-bold text-slate-700">Viewing ${branchName} Data</h2>
-                <p class="text-slate-500 mt-2">Switch to your branch tab to add new entries.</p>
-            </div>`;
+            inputContainer.innerHTML = `<div class="bg-white p-6 rounded-2xl shadow-md text-center"><h2 class="text-xl font-bold text-slate-700">Viewing ${branchName} Data</h2><p class="text-slate-500 mt-2">Switch to your branch tab to add new entries.</p></div>`;
         }
         
+        // Always render dashboard and log table structures
         dashboardContainer.innerHTML = `
             <div class="bg-white p-6 rounded-2xl shadow-md">
-                <h2 class="text-2xl font-bold mb-4">Financials for ${branchName}</h2>
+                <h2 class="text-2xl font-bold mb-4">Today's Financials for ${branchName}</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total Turnover</div><div class="text-4xl font-bold text-slate-800" id="total-turnover">R 0.00</div></div>
                     <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total GP Amount</div><div class="text-4xl font-bold text-green-600" id="total-gp-amount">R 0.00</div></div>
                     <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Overall GP %</div><div class="text-4xl font-bold text-green-600" id="total-gp-percent">0.00%</div></div>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="bg-white p-6 rounded-2xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4">Walk-In Analysis</h2>
-                    <div class="grid grid-cols-3 gap-4">
-                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total</div><div class="text-3xl font-bold text-slate-800" id="total-walk-ins">0</div></div>
-                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Sales</div><div class="text-3xl font-bold text-slate-800" id="walk-in-sales">0</div></div>
-                        <div class="bg-blue-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-blue-800">Conversion</div><div class="text-3xl font-bold text-blue-600" id="walk-in-conversion">0.00%</div></div>
-                    </div>
-                </div>
-                <div class="bg-white p-6 rounded-2xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4">WhatsApp Analysis</h2>
-                    <div class="grid grid-cols-3 gap-4">
-                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Total</div><div class="text-3xl font-bold text-slate-800" id="total-whatsapps">0</div></div>
-                        <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-slate-500">Sales</div><div class="text-3xl font-bold text-slate-800" id="whatsapp-sales">0</div></div>
-                        <div class="bg-green-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-green-800">Conversion</div><div class="text-3xl font-bold text-green-600" id="whatsapp-conversion">0.00%</div></div>
-                    </div>
+            <div class="bg-white p-6 rounded-2xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Today's Activity for ${branchName}</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-blue-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-blue-800">Total Walk-Ins</div><div class="text-3xl font-bold text-blue-600" id="total-walk-ins">0</div></div>
+                    <div class="bg-green-50 p-4 rounded-lg text-center"><div class="text-sm font-medium text-green-800">Total WhatsApp</div><div class="text-3xl font-bold text-green-600" id="total-whatsapps">0</div></div>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="bg-white p-6 rounded-2xl shadow-md">
-                    <h3 class="text-xl font-bold mb-2">Reasons for No Sale</h3>
-                    <div id="reason-breakdown" class="text-slate-600"></div>
-                </div>
-                <div class="bg-white p-6 rounded-2xl shadow-md">
-                    <h3 class="text-xl font-bold mb-2">Walk-In Sources</h3>
-                    <div id="source-breakdown" class="text-slate-600"></div>
-                </div>
-            </div>`;
-            
+            <div class="bg-white p-6 rounded-2xl shadow-md ${branchName === currentUser.branch ? '' : 'hidden'}">
+                <h2 class="text-2xl font-bold mb-4">End of Day Financials</h2>
+                <form id="summary-form" class="space-y-4">
+                    <div><label for="summary-turnover" class="font-semibold block mb-1">Day's Total Turnover</label><input type="number" id="summary-turnover" step="0.01" class="w-full p-2 border rounded-lg"></div>
+                    <div><label for="summary-cost" class="font-semibold block mb-1">Day's Total Cost of Goods</label><input type="number" id="summary-cost" step="0.01" class="w-full p-2 border rounded-lg"></div>
+                    <button type="submit" class="w-full bg-slate-800 text-white font-bold py-3 rounded-lg">Save Daily Totals</button>
+                </form>
+            </div>
+            `;
         logTableContainer.innerHTML = `
             <h2 class="text-2xl font-bold mb-4">Log for ${branchName}</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead class="border-b-2">
-                        <tr>
-                            <th class="p-2">Time</th><th class="p-2">Type</th><th class="p-2">Outcome</th>
-                            <th class="p-2">Amount</th><th class="p-2">Reason / Items</th><th class="p-2">Source / Inquiry</th>
-                        </tr>
-                    </thead>
-                    <tbody id="log-body"></tbody>
-                </table>
-            </div>`;
+            <div class="overflow-x-auto"><table class="w-full text-left"><thead class="border-b-2"><tr><th class="p-2">Time</th><th class="p-2">Type</th><th class="p-2">Details</th><th class="p-2">Outcome / Notes</th><th class="p-2">Actions</th></tr></thead><tbody id="log-body"></tbody></table></div>`;
+        
+        // Bind event listener for the new summary form
+        if (branchName === currentUser.branch) {
+            document.getElementById('summary-form').addEventListener('submit', handleDailySummarySubmit);
+        }
     }
     
     function populateAndBindForms() {
         const walkInForm = document.getElementById('walk-in-form');
         const whatsappForm = document.getElementById('whatsapp-form');
         
-        walkInForm.innerHTML = `<div><label class="font-semibold block mb-2">Did they buy?</label><div class="flex items-center space-x-4"><label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="walkin-bought" value="no" checked> <span class="ml-2">No</span></label><label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="walkin-bought" value="yes"> <span class="ml-2">Yes</span></label></div></div><div id="walkin-sale-fields" class="hidden space-y-4"><div><label for="walkin-amount" class="font-semibold block mb-1">Sale Amount</label><input type="number" id="walkin-amount" placeholder="e.g. 1250.50" step="0.01" class="w-full p-2 border rounded-lg"></div><div><label for="walkin-cost" class="font-semibold block mb-1">Cost of Goods</label><input type="number" id="walkin-cost" placeholder="e.g. 750.00" step="0.01" class="w-full p-2 border rounded-lg"></div><div><label for="walkin-items" class="font-semibold block mb-1">Items</label><textarea id="walkin-items" rows="2" class="w-full p-2 border rounded-lg"></textarea></div></div><div id="walkin-no-sale-fields"><label for="walkin-no-sale-reason" class="font-semibold block mb-1">Reason</label><select id="walkin-no-sale-reason" class="w-full p-2 border rounded-lg bg-white"><option>Just Looking</option><option>Price Too High</option><option>No Stock</option><option>Other</option></select></div><div><label for="walkin-source" class="font-semibold block mb-1">Source</label><select id="walkin-source" class="w-full p-2 border rounded-lg bg-white"><option>Passing By</option><option>Google</option><option>Facebook</option><option>Referral</option></select></div><button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">Log Walk-In</button>`;
-        whatsappForm.innerHTML = `<div><label for="whatsapp-inquiry" class="font-semibold block mb-1">Inquiry?</label><input type="text" id="whatsapp-inquiry" required class="w-full p-2 border rounded-lg"></div><div><label class="font-semibold block mb-2">Sale?</label><div class="flex items-center space-x-4"><label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="whatsapp-bought" value="no" checked> <span class="ml-2">No</span></label><label class="flex items-center cursor-pointer"><input type="radio" class="form-radio" name="whatsapp-bought" value="yes"> <span class="ml-2">Yes</span></label></div></div><div id="whatsapp-sale-fields" class="hidden space-y-4"><div><label for="whatsapp-amount" class="font-semibold block mb-1">Sale Amount</label><input type="number" id="whatsapp-amount" placeholder="e.g. 1250.50" step="0.01" class="w-full p-2 border rounded-lg"></div><div><label for="whatsapp-cost" class="font-semibold block mb-1">Cost of Goods</label><input type="number" id="whatsapp-cost" placeholder="e.g. 750.00" step="0.01" class="w-full p-2 border rounded-lg"></div></div><div id="whatsapp-no-sale-fields"><label for="whatsapp-no-sale-reason" class="font-semibold block mb-1">Reason</label><select id="whatsapp-no-sale-reason" class="w-full p-2 border rounded-lg bg-white"><option>Ghosted</option><option>Price Too High</option><option>Too Far</option><option>No Stock</option><option>Other</option></select></div><button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg">Log WhatsApp</button>`;
+        walkInForm.innerHTML = `
+            <div><label class="font-semibold block mb-1">Source</label><select id="walkin-source" class="w-full p-2 border rounded-lg bg-white"><option>Passing By</option><option>Google</option><option>Facebook</option><option>Referral</option></select></div>
+            <div><label class="font-semibold block mb-1">Outcome</label><select id="walkin-outcome" class="w-full p-2 border rounded-lg bg-white"><option>Made a Sale</option><option>No Sale - Just Looking</option><option>No Sale - Price Too High</option><option>No Sale - No Stock</option></select></div>
+            <div><label for="walkin-notes" class="font-semibold block mb-1">Notes</label><textarea id="walkin-notes" rows="2" class="w-full p-2 border rounded-lg" placeholder="Optional notes..."></textarea></div>
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">Log Walk-In</button>`;
+        
+        whatsappForm.innerHTML = `
+            <div><label for="whatsapp-inquiry" class="font-semibold block mb-1">Inquiry About?</label><input type="text" id="whatsapp-inquiry" required class="w-full p-2 border rounded-lg"></div>
+            <div><label class="font-semibold block mb-1">Follow-up Done?</label><select id="whatsapp-followup" class="w-full p-2 border rounded-lg bg-white"><option>Yes</option><option>No</option></select></div>
+            <div><label class="font-semibold block mb-1">Final Outcome</label><select id="whatsapp-outcome" class="w-full p-2 border rounded-lg bg-white"><option>Made a Sale</option><option>No Sale - Ghosted</option><option>No Sale - Price Too High</option><option>No Sale - Too Far</option></select></div>
+            <div><label for="whatsapp-notes" class="font-semibold block mb-1">Notes</label><textarea id="whatsapp-notes" rows="2" class="w-full p-2 border rounded-lg" placeholder="Optional notes..."></textarea></div>
+            <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg">Log WhatsApp</button>`;
 
-        setupRadioToggle('walkin-bought', 'walkin-sale-fields', 'walkin-no-sale-fields');
-        setupRadioToggle('whatsapp-bought', 'whatsapp-sale-fields', 'whatsapp-no-sale-fields');
         walkInForm.addEventListener('submit', handleFormSubmit);
         whatsappForm.addEventListener('submit', handleFormSubmit);
     }
     
-    function setupRadioToggle(radioName, saleFieldsId, noSaleFieldsId) {
-        document.querySelectorAll(`input[name="${radioName}"]`).forEach(radio => {
-            radio.addEventListener('change', function() {
-                document.getElementById(saleFieldsId).classList.toggle('hidden', this.value !== 'yes');
-                document.getElementById(noSaleFieldsId).classList.toggle('hidden', this.value === 'yes');
-            });
-        });
-    }
+    // --- DATA SAVING (CREATE & UPDATE) ---
+    async function handleFormSubmit(e) { /* ... Similar logic, simplified ... */ }
+    async function handleDailySummarySubmit(e) { /* ... New function ... */ }
+    async function handleUpdateSubmit(e) { /* ... New function for edit modal ... */ }
+
+    // --- EDIT MODAL LOGIC ---
+    function openEditModal(entry) { /* ... New function ... */ }
+    function closeEditModal() { editModalBackdrop.style.display = 'none'; }
+    
+    // --- UI UPDATE ---
+    function updateDashboard() { /* ... Updated logic ... */ }
+    function updateLogTable() { /* ... Updated to add Edit button ... */ }
+
+    // --- HELPER FUNCTIONS ---
+    const handleLogout = () => signOut(auth);
+    function setupBranchTabs() { /* ... Unchanged ... */ }
+    
+    // --- Full function implementations ---
+    
+    editModalBackdrop.addEventListener('click', (e) => { if (e.target === editModalBackdrop) closeEditModal(); });
 
     async function handleFormSubmit(e) {
         e.preventDefault();
         const form = e.target;
-        form.querySelector('button[type="submit"]').textContent = 'Saving...';
-        form.querySelector('button[type="submit"]').disabled = true;
+        const button = form.querySelector('button[type="submit"]');
+        button.textContent = 'Saving...';
+        button.disabled = true;
         
         let entry;
         if (form.id === 'walk-in-form') {
-            const bought = form.querySelector('input[name="walkin-bought"]:checked').value === 'yes';
-            entry = { type: 'Walk-In', bought, amount: bought ? parseFloat(form.querySelector('#walkin-amount').value) || 0 : 0, cost: bought ? parseFloat(form.querySelector('#walkin-cost').value) || 0 : 0, reason: bought ? form.querySelector('#walkin-items').value : form.querySelector('#walkin-no-sale-reason').value, source: form.querySelector('#walkin-source').value };
-        } else { // whatsapp-form
-            const bought = form.querySelector('input[name="whatsapp-bought"]:checked').value === 'yes';
-            entry = { type: 'WhatsApp', bought, amount: bought ? parseFloat(form.querySelector('#whatsapp-amount').value) || 0 : 0, cost: bought ? parseFloat(form.querySelector('#whatsapp-cost').value) || 0 : 0, reason: bought ? 'Sale via WhatsApp' : form.querySelector('#whatsapp-no-sale-reason').value, source: form.querySelector('#whatsapp-inquiry').value };
+            entry = { type: 'Walk-In', source: form.querySelector('#walkin-source').value, outcome: form.querySelector('#walkin-outcome').value, notes: form.querySelector('#walkin-notes').value };
+        } else {
+            entry = { type: 'WhatsApp', inquiry: form.querySelector('#whatsapp-inquiry').value, followup: form.querySelector('#whatsapp-followup').value, outcome: form.querySelector('#whatsapp-outcome').value, notes: form.querySelector('#whatsapp-notes').value };
         }
-
         entry.branch = currentUser.branch;
         entry.timestamp = serverTimestamp();
         
         try {
             await addDoc(collection(db, "entries"), entry);
             form.reset();
-            form.querySelector('input[type="radio"][value="no"]').dispatchEvent(new Event('change'));
         } catch (error) {
             console.error("Error adding document: ", error);
-            alert("Could not save entry. Please try again.");
         } finally {
-            form.querySelector('button[type="submit"]').textContent = form.id === 'walk-in-form' ? 'Log Walk-In' : 'Log WhatsApp';
-            form.querySelector('button[type="submit"]').disabled = false;
+            button.textContent = form.id === 'walk-in-form' ? 'Log Walk-In' : 'Log WhatsApp';
+            button.disabled = false;
         }
+    }
+
+    async function handleDailySummarySubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const button = form.querySelector('button[type="submit"]');
+        button.textContent = 'Saving...';
+        button.disabled = true;
+
+        const summary = {
+            turnover: parseFloat(form.querySelector('#summary-turnover').value) || 0,
+            cost: parseFloat(form.querySelector('#summary-cost').value) || 0,
+        };
+        const summaryId = `${new Date().toISOString().split('T')[0]}-${currentUser.branch}`;
+        try {
+            await setDoc(doc(db, "dailySummaries", summaryId), summary, { merge: true });
+        } catch(error) {
+            console.error("Error saving summary:", error);
+        } finally {
+            button.textContent = 'Save Daily Totals';
+            button.disabled = false;
+        }
+    }
+
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        if (!currentlyEditingId) return;
+
+        const button = e.target.querySelector('button[type="submit"]');
+        button.textContent = 'Saving...';
+        button.disabled = true;
+
+        let updatedData = {};
+        const entryType = e.target.dataset.type;
+
+        if (entryType === 'Walk-In') {
+             updatedData = { source: e.target.querySelector('#edit-walkin-source').value, outcome: e.target.querySelector('#edit-walkin-outcome').value, notes: e.target.querySelector('#edit-walkin-notes').value };
+        } else { // WhatsApp
+             updatedData = { inquiry: e.target.querySelector('#edit-whatsapp-inquiry').value, followup: e.target.querySelector('#edit-whatsapp-followup').value, outcome: e.target.querySelector('#edit-whatsapp-outcome').value, notes: e.target.querySelector('#edit-whatsapp-notes').value };
+        }
+        
+        try {
+            await updateDoc(doc(db, "entries", currentlyEditingId), updatedData);
+            closeEditModal();
+        } catch(error) {
+            console.error("Error updating document:", error);
+        } finally {
+            currentlyEditingId = null;
+        }
+    }
+
+    function openEditModal(entry) {
+        currentlyEditingId = entry.id;
+        editForm.dataset.type = entry.type;
+        if (entry.type === 'Walk-In') {
+            editForm.innerHTML = `
+                <div><label class="font-semibold block mb-1">Source</label><select id="edit-walkin-source" class="w-full p-2 border rounded-lg bg-white"><option>Passing By</option><option>Google</option><option>Facebook</option><option>Referral</option></select></div>
+                <div><label class="font-semibold block mb-1">Outcome</label><select id="edit-walkin-outcome" class="w-full p-2 border rounded-lg bg-white"><option>Made a Sale</option><option>No Sale - Just Looking</option><option>No Sale - Price Too High</option><option>No Sale - No Stock</option></select></div>
+                <div><label for="edit-walkin-notes" class="font-semibold block mb-1">Notes</label><textarea id="edit-walkin-notes" rows="3" class="w-full p-2 border rounded-lg"></textarea></div>
+                <div class="flex justify-end space-x-4"><button type="button" id="cancel-edit" class="bg-slate-200 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Save Changes</button></div>`;
+            editForm.querySelector('#edit-walkin-source').value = entry.source;
+            editForm.querySelector('#edit-walkin-outcome').value = entry.outcome;
+            editForm.querySelector('#edit-walkin-notes').value = entry.notes;
+        } else { // WhatsApp
+            editForm.innerHTML = `
+                <div><label for="edit-whatsapp-inquiry" class="font-semibold block mb-1">Inquiry About?</label><input type="text" id="edit-whatsapp-inquiry" required class="w-full p-2 border rounded-lg"></div>
+                <div><label class="font-semibold block mb-1">Follow-up Done?</label><select id="edit-whatsapp-followup" class="w-full p-2 border rounded-lg bg-white"><option>Yes</option><option>No</option></select></div>
+                <div><label class="font-semibold block mb-1">Final Outcome</label><select id="edit-whatsapp-outcome" class="w-full p-2 border rounded-lg bg-white"><option>Made a Sale</option><option>No Sale - Ghosted</option><option>No Sale - Price Too High</option><option>No Sale - Too Far</option></select></div>
+                <div><label for="edit-whatsapp-notes" class="font-semibold block mb-1">Notes</label><textarea id="edit-whatsapp-notes" rows="3" class="w-full p-2 border rounded-lg"></textarea></div>
+                <div class="flex justify-end space-x-4"><button type="button" id="cancel-edit" class="bg-slate-200 px-4 py-2 rounded-lg">Cancel</button><button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg">Save Changes</button></div>`;
+            editForm.querySelector('#edit-whatsapp-inquiry').value = entry.inquiry;
+            editForm.querySelector('#edit-whatsapp-followup').value = entry.followup;
+            editForm.querySelector('#edit-whatsapp-outcome').value = entry.outcome;
+            editForm.querySelector('#edit-whatsapp-notes').value = entry.notes;
+        }
+        editModalBackdrop.style.display = 'flex';
+        editModal.style.transform = 'translateY(0)';
+        editForm.querySelector('#cancel-edit').addEventListener('click', closeEditModal);
+        editForm.addEventListener('submit', handleUpdateSubmit);
     }
     
     function updateDashboard() {
-        const walkIns = entries.filter(e => e.type === 'Walk-In');
-        const whatsapps = entries.filter(e => e.type === 'WhatsApp');
-        const totalTurnover = entries.reduce((sum, e) => sum + (e.amount || 0), 0);
-        const totalCost = entries.reduce((sum, e) => sum + (e.cost || 0), 0);
-        const totalGpAmount = totalTurnover - totalCost;
-        const totalGpPercent = totalTurnover > 0 ? (totalGpAmount / totalTurnover) * 100 : 0;
+        // Financials from daily summary
+        const turnover = dailySummary?.turnover || 0;
+        const cost = dailySummary?.cost || 0;
+        const gpAmount = turnover - cost;
+        const gpPercent = turnover > 0 ? (gpAmount / turnover) * 100 : 0;
+        document.getElementById('total-turnover').textContent = `R ${turnover.toFixed(2)}`;
+        document.getElementById('total-gp-amount').textContent = `R ${gpAmount.toFixed(2)}`;
+        document.getElementById('total-gp-percent').textContent = `${gpPercent.toFixed(2)}%`;
         
-        document.getElementById('total-walk-ins').textContent = walkIns.length;
-        document.getElementById('walk-in-sales').textContent = walkIns.filter(e => e.bought).length;
-        document.getElementById('walk-in-conversion').textContent = `${(walkIns.length > 0 ? (walkIns.filter(e => e.bought).length / walkIns.length) * 100 : 0).toFixed(2)}%`;
-        
-        document.getElementById('total-whatsapps').textContent = whatsapps.length;
-        document.getElementById('whatsapp-sales').textContent = whatsapps.filter(e => e.bought).length;
-        document.getElementById('whatsapp-conversion').textContent = `${(whatsapps.length > 0 ? (whatsapps.filter(e => e.bought).length / whatsapps.length) * 100 : 0).toFixed(2)}%`;
-        
-        document.getElementById('total-turnover').textContent = `R ${totalTurnover.toFixed(2)}`;
-        document.getElementById('total-gp-amount').textContent = `R ${totalGpAmount.toFixed(2)}`;
-        document.getElementById('total-gp-percent').textContent = `${totalGpPercent.toFixed(2)}%`;
-
-        updateBreakdown('reason-breakdown', entries.filter(e => !e.bought), 'reason');
-        updateBreakdown('source-breakdown', walkIns, 'source');
-    }
-
-    function updateBreakdown(elementId, data, property) {
-        const breakdownEl = document.getElementById(elementId);
-        const counts = data.reduce((acc, item) => {
-            const key = item[property] || 'Other';
-            acc[key] = (acc[key] || 0) + 1;
-            return acc;
-        }, {});
-        if (Object.keys(counts).length === 0) {
-            breakdownEl.innerHTML = '<p class="text-slate-500">No data yet.</p>'; return;
+        // Populate end of day form with current values
+        const summaryForm = document.getElementById('summary-form');
+        if (summaryForm) {
+            summaryForm.querySelector('#summary-turnover').value = turnover;
+            summaryForm.querySelector('#summary-cost').value = cost;
         }
-        let html = '<ul class="space-y-1">';
-        Object.entries(counts).sort(([,a],[,b]) => b-a).forEach(([key, value]) => {
-            html += `<li class="flex justify-between items-center"><span>${key}</span> <span class="font-bold bg-slate-100 px-2 py-0.5 rounded-full text-sm">${value}</span></li>`;
-        });
-        html += '</ul>';
-        breakdownEl.innerHTML = html;
+
+        // Activity from entries
+        document.getElementById('total-walk-ins').textContent = entries.filter(e => e.type === 'Walk-In').length;
+        document.getElementById('total-whatsapps').textContent = entries.filter(e => e.type === 'WhatsApp').length;
     }
-    
+
     function updateLogTable() {
         const tableBody = document.getElementById('log-body');
         tableBody.innerHTML = ''; 
         if(entries.length === 0){
-             tableBody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-slate-500">No entries for this branch.</td></tr>';
+             tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-slate-500">No entries yet.</td></tr>';
              return;
         }
         entries.forEach(entry => {
             const row = tableBody.insertRow();
             row.className = 'border-b hover:bg-slate-50';
             const timestamp = entry.timestamp ? entry.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
+            const details = entry.type === 'Walk-In' ? `Source: ${entry.source}` : `Inquiry: ${entry.inquiry}`;
             row.innerHTML = `
                 <td class="p-2">${timestamp}</td>
                 <td class="p-2">${entry.type}</td>
-                <td class="p-2 font-semibold ${entry.bought ? 'text-green-600' : 'text-red-600'}">${entry.bought ? 'Sale' : 'No Sale'}</td>
-                <td class="p-2">R ${(entry.amount || 0).toFixed(2)}</td>
-                <td class="p-2 text-sm text-slate-600 truncate max-w-xs">${entry.reason || '-'}</td>
-                <td class="p-2 text-sm text-slate-600 truncate max-w-xs">${entry.source || '-'}</td>
+                <td class="p-2 text-sm text-slate-600">${details}</td>
+                <td class="p-2 text-sm text-slate-600">${entry.outcome}<br><em class="text-xs">${entry.notes || ''}</em></td>
+                <td class="p-2"><button data-id="${entry.id}" class="edit-btn text-blue-600 hover:underline text-sm">Edit</button></td>
             `;
         });
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const entry = entries.find(e => e.id === btn.dataset.id);
+                if(entry) openEditModal(entry);
+            });
+        });
     }
+
+    // Unchanged helper functions
+    function setupBranchTabs() { const branches = ["Alberton", "Vanderbijlpark"]; const tabsContainer = document.getElementById('branch-tabs'); tabsContainer.innerHTML = ''; branches.forEach(branch => { const tab = document.createElement('a'); tab.href = '#'; tab.dataset.branch = branch; tab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; tab.textContent = branch; if (branch === currentUser.branch) { tab.classList.add('tab-active'); } tab.addEventListener('click', (e) => { e.preventDefault(); listenToBranchData(branch); document.querySelectorAll('#branch-tabs a').forEach(t => t.classList.remove('tab-active')); tab.classList.add('tab-active'); }); tabsContainer.appendChild(tab); }); }
+
 </script>
 </body>
 </html>
